@@ -273,9 +273,18 @@ export async function scanReceipt(file) {
 
     try {
       const data = JSON.parse(cleanedText);
+      // Create date and adjust for IST timezone if needed
+      let transactionDate = new Date(data.date);
+      // If the date seems to be in UTC, adjust for IST
+      if (data.date && !data.date.includes('T')) {
+        // If date is in YYYY-MM-DD format, treat as IST
+        const [year, month, day] = data.date.split('-');
+        transactionDate = new Date(year, month - 1, day, 12, 0, 0); // Set to noon IST
+      }
+      
       return {
         amount: parseFloat(data.amount),
-        date: new Date(data.date),
+        date: transactionDate,
         description: data.description,
         category: data.category,
         merchantName: data.merchantName,
@@ -292,22 +301,26 @@ export async function scanReceipt(file) {
 
 // Helper function to calculate next recurring date
 function calculateNextRecurringDate(startDate, interval) {
+  // Ensure we're working with IST timezone
   const date = new Date(startDate);
+  // Adjust for IST if the date appears to be in UTC
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(date.getTime() + istOffset);
 
   switch (interval) {
     case "DAILY":
-      date.setDate(date.getDate() + 1);
+      istDate.setDate(istDate.getDate() + 1);
       break;
     case "WEEKLY":
-      date.setDate(date.getDate() + 7);
+      istDate.setDate(istDate.getDate() + 7);
       break;
     case "MONTHLY":
-      date.setMonth(date.getMonth() + 1);
+      istDate.setMonth(istDate.getMonth() + 1);
       break;
     case "YEARLY":
-      date.setFullYear(date.getFullYear() + 1);
+      istDate.setFullYear(istDate.getFullYear() + 1);
       break;
   }
-
-  return date;
+  
+  return istDate;
 }

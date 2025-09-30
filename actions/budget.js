@@ -3,6 +3,7 @@
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { getStartOfMonthIST, getEndOfMonthIST, formatISTDate } from "@/lib/timezone";
 
 export async function getCurrentBudget(accountId) {
   try {
@@ -23,18 +24,10 @@ export async function getCurrentBudget(accountId) {
       },
     });
 
-    // Get current month's expenses
+    // Get current month's expenses (adjusted for IST timezone)
     const currentDate = new Date();
-    const startOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      1
-    );
-    const endOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() + 1,
-      0
-    );
+    const startOfMonth = getStartOfMonthIST(currentDate);
+    const endOfMonth = getEndOfMonthIST(currentDate);
 
     const expenses = await db.transaction.aggregate({
       where: {
@@ -51,11 +44,13 @@ export async function getCurrentBudget(accountId) {
       },
     });
 
+    // If no expenses found for current month, the sum will be null
+    // This is normal if there are no expense transactions in the current month
+    const currentExpenses = expenses._sum.amount ? expenses._sum.amount.toNumber() : 0;
+
     return {
       budget: budget ? { ...budget, amount: budget.amount.toNumber() } : null,
-      currentExpenses: expenses._sum.amount
-        ? expenses._sum.amount.toNumber()
-        : 0,
+      currentExpenses,
     };
   } catch (error) {
     console.error("Error fetching budget:", error);
